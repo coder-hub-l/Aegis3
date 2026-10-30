@@ -15,7 +15,9 @@ Aegis3/
 │   ├── filters/
 │   │   ├── louvain_cluster.py   Community partitioning (groups tightly linked wallets)
 │   │   ├── jaccard_dna.py       Behavioral sequence similarity (catches scripted contract calls)
-│   │   └── cex_tracer.py        [Planned] CEX deposit address convergence
+│   │   ├── cex_tracer.py        [Planned] CEX deposit address convergence tracer
+│   │   ├── entropy_clock.py     [Planned] Population interval entropy and diurnal rhythm analysis
+│   │   └── universe_sandbox.py  [Planned] Bounded-universe ecosystem leakage filter
 │   └── scorer.py                Aggregates signals into 0-100 risk scores with tiered verdicts
 │
 ├── data-pipeline/               Data sourcing and normalization
@@ -40,40 +42,42 @@ Aegis3/
 
 ## System Architecture
 
-The pipeline has five stages. Each stage is a separate module with clean input/output boundaries so any piece can be replaced or improved independently.
+The pipeline operates across five distinct phases, moving from raw on-chain data to final cryptographic governance deliverables.
 
 ```
                           AEGIS3 DETECTION PIPELINE
                           -------------------------
 
-  [1] INGEST              [2] BUILD              [3] DETECT
-  Candidate wallet     -> Directed graph      -> Run detection
-  list (CSV/JSON)         with transfer           heuristics on
-  + transaction           edges, pruned           the graph
-  histories from          of exchange
-  Etherscan/RPC           mega-hubs
+  [1] INGEST              [2] BUILD              [3] DETECT (Multi-Signal)
+  Candidate wallet     -> Directed graph      -> • Louvain Partitioning (Topology)
+  list (CSV/JSON)         with transfer          • Jaccard DNA (Contract Overlap)
+  + live traces from      edges, pruned          • CEX Deposit Convergence (Cash-out)
+  Etherscan/RPC           of exchange            • Population Entropy (Timing RNG)
+                          mega-hubs              • Bounded Universe (Activity Leakage)
 
-       |                       |                      |
-       v                       v                      v
+       |                       |                               |
+       v                       v                               v
 
-  normalizer.py          graph_builder.py        louvain_cluster.py
-  etherscan_client.py                            jaccard_dna.py
-                                                 cex_tracer.py
+  normalizer.py          graph_builder.py              louvain_cluster.py
+  etherscan_client.py                                  jaccard_dna.py
+                                                       cex_tracer.py
+                                                       entropy_clock.py
+                                                       universe_sandbox.py
 
-                                                      |
-                                                      v
+                                                               |
+                                                               v
 
-                        [4] SCORE              [5] REPORT
-                        Aggregate signals   -> Generate HTML/PDF
-                        into 0-100 risk        audit report with
-                        scores and assign      evidence trails and
-                        tiered verdicts        integrity hashes
+                        [4] SCORE                      [5] REPORT
+                        Aggregate signals           -> Generate HTML/PDF
+                        into 0-100 risk                audit report with
+                        scores and assign              evidence trails and
+                        tiered verdicts                integrity hashes
 
-                             |                      |
-                             v                      v
+                             |                              |
+                             v                              v
 
-                         scorer.py            generate_report.py
-                                              evidence_hasher.py
+                         scorer.py                    generate_report.py
+                                                      evidence_hasher.py
 ```
 
 ---
@@ -86,19 +90,58 @@ We do not use neural networks, deep learning, or LLMs to detect Sybils. The reas
 2. Protocols need to publicly justify every disqualification. A model that says "87.4% probability of being a bot" based on latent embeddings will get torn apart on Twitter. Deterministic graph evidence ("these 42 wallets were funded by the same address within 3 minutes") cannot be argued with.
 3. The computational cost and latency of inference models is unnecessary when the attack patterns are structurally visible in the transaction graph.
 
-The three core heuristics:
+The multi-signal defense framework:
 
-**Louvain Community Partitioning** identifies dense subgraphs of wallets that transact heavily with each other but rarely with the rest of the network. Bot cartels form tight, isolated clusters because the master wallet funds all puppet wallets, and the puppets interact with the same contracts. Louvain finds these communities in seconds on graphs with hundreds of thousands of nodes.
+- **Louvain Community Partitioning:** Identifies dense subgraphs of wallets that transact heavily with each other but rarely with the rest of the network. Bot cartels form tight, isolated clusters because the master wallet funds all puppet wallets, and the puppets interact with the same contracts.
+- **Jaccard Behavioral DNA:** Compares the set of smart contracts each wallet has interacted with. Two wallets that share 85% or more of their contract interaction history are running the same automated script.
+- **CEX Deposit Address Convergence:** Traces where wallets send their tokens after the airdrop. If 40 wallets deposit tokens into the exact same Binance deposit address, they are controlled by the same person.
+- **Population Entropy & Diurnal Activity Analysis:** Evaluates whether transaction inter-arrival times follow natural human bursty Poisson processes and sleep cycles, catching attackers who attempt to randomize sleep timers.
+- **Bounded-Universe Sandbox Detection:** Measures ecosystem leakage. Real users interact with diverse protocols across the chain (meme coins, gaming, governance), whereas automated cartels confine activity strictly within token qualification tasks.
 
-**Jaccard Behavioral DNA** compares the set of smart contracts each wallet has interacted with. Two wallets that share 85% or more of their contract interaction history are almost certainly running the same automated script, even if they randomized their transaction timing. The Jaccard index is a simple set-overlap ratio that requires no training data.
+---
 
-**CEX Deposit Address Convergence** (planned) traces where wallets send their tokens after the airdrop. If 40 wallets deposit tokens into the exact same Binance deposit address, they are controlled by the same person. This heuristic has near-zero false positive rate because deposit addresses are unique per user on centralized exchanges.
+## Issue Dependency & Sprint Roadmap
 
-Each heuristic produces an independent signal. The scorer combines them with configurable weights into a single 0-100 risk score and assigns a verdict:
+```
+WEEK 1-2: DATA & CORE HEURISTICS
+--------------------------------
+[#4 Etherscan Batch Scraper] (Chirag)
+       |
+       +------ feeds -----> [#5 Wallet Fingerprint Extractor] (Chirag)
+       |                            |
+       v                            v
+[#1 CEX Deposit Tracer] (Laukik)    [#6 Candidate List CLI] (Chirag)
+       |
+[#2 Temporal Decay Weights] (Laukik)
+       |
+[#3 Connected Component Pre-Filter] (Laukik)
 
-- Tier 1 (Score 0-34): Eligible. No suspicious signals detected.
-- Tier 2 (Score 35-69): Manual Review. Some signals present but insufficient confidence for automatic disqualification.
-- Tier 3 (Score 70-100): Disqualified. Strong, multi-signal evidence of industrial coordination.
+
+WEEK 3-4: ADVANCED ANTI-EVASION & VERIFICATION
+----------------------------------------------
+[#12 Population Entropy & Diurnal Clock] (Laukik)
+       |
+[#13 Bounded-Universe Sandbox Filter] (Laukik)
+       |
+       +------ feeds -----> [#9 Automated Precision/Recall Benchmark] (Laukik)
+                            [#7 SHA-256 Evidence Hashes] (Laukik)
+                                   |
+                            [#8 PDF Report Export] (Chirag)
+
+
+WEEK 5-6: INTEGRATION & CLAIM GATE
+----------------------------------
+[#10 FastAPI REST Scoring Endpoint] (Laukik)
+       |
+       +------ connects to -> [#11 React Claim-Gate Component] (Chirag)
+
+
+PARALLEL COMMERCIAL TRACK (Vinit, CPO):
+---------------------------------------
+[#14 Protocol Founder Discovery Interviews] (Weeks 1-3)
+       |
+Targeted Design Partner LOIs & Launch Operations Playbook (Weeks 4-6)
+```
 
 ---
 
@@ -109,14 +152,12 @@ Each heuristic produces an independent signal. The scorer combines them with con
 - The report generator produces a dark-mode HTML audit report with metrics cards, a flagged wallet evidence table, and signal breakdowns.
 - `run_audit.py` ties the full pipeline together and can be executed with a single terminal command.
 
-What does not work yet: the pipeline uses pre-downloaded CSV data and synthetic transfer edges. The planned data ingestion layer (Etherscan scraping, wallet normalization, real Jaccard fingerprinting) will replace these with live on-chain data.
-
 ---
 
 ## Local Development Setup
 
 ```
-git clone https://github.com/<your-org>/Aegis3.git
+git clone https://github.com/coder-hub-l/Aegis3.git
 cd Aegis3
 python -m venv .venv
 
@@ -151,108 +192,3 @@ Output is written to `Docs/launch_audit_report.html` and `Docs/scored_allocation
 | Laukik Wani | CTO, Systems and Security | Core detection engine, graph algorithms, API architecture, benchmarking, infrastructure |
 | Chirag Janbandhu | CDO, Data Operations | On-chain data sourcing (Etherscan, Dune), dataset curation, report generator, claim SDK frontend |
 | Vinit | CPO, Product Management | Customer discovery, protocol outreach, pricing validation, competitive intelligence, launch operations playbook |
-
----
-
-## What Each Person Owns
-
-### Laukik (CTO): Detection Engine and Infrastructure
-
-You own everything inside `core-engine/`, `api/`, and `tests/`. Your job is to make the detection pipeline accurate, fast, and production-hardened. If a protocol runs Aegis3 on 500,000 wallets, the system should return scored results in under 60 seconds with documented precision and recall numbers.
-
-### Chirag (CDO): Data Pipeline and Client Deliverables
-
-You own everything inside `data-pipeline/`, `report-generator/`, and `claim-sdk/`. Your job is to build the data ingestion layer that connects the detection engine to real blockchain data, and to produce the client-facing deliverables (HTML reports, PDF exports, evidence hashes) that protocol foundations actually pay for.
-
-### Vinit (CPO): Product-Market Fit and Commercial Validation
-
-You do not write detection algorithms. Your work is equally critical but different in nature. You own:
-
-1. **Customer Discovery Interviews:** Talk to 15-20 protocol founders, foundation operators, DevRel leads, and launchpad teams. Ask them how they currently handle Sybil filtering, what tools they use, what has gone wrong, who holds the budget, and what they would pay for a better solution. Document every conversation in a structured format (date, protocol name, key quotes, pain points, current tools, budget authority).
-
-2. **Competitive Intelligence:** Maintain a living document tracking what Trusta Labs, Blockaid, Gitcoin Passport, and any new entrants are shipping. Monitor their blog posts, integration announcements, and pricing changes. Flag anything that affects our positioning.
-
-3. **Pricing Validation:** Our current hypothesis is 15-30 lakh per launch audit. Validate this with real conversations. Find out what protocols are actually spending on security tooling today and what budget category this falls under.
-
-4. **Design Partner Acquisition:** Identify 5 emerging protocols preparing for token launches in the next 6 months. Get at least 3 to commit as design partners (they give us access to their candidate wallet list for a free pilot audit, we give them the report, and we document the case study).
-
-5. **Launch Operations Playbook:** Write the operational runbook for how a protocol engagement works end-to-end. From initial sales call to data handoff, audit execution, report delivery, community publication, and post-launch support. This becomes the internal operations manual.
-
-6. **Pitch Deck and Application Materials:** Own the narrative. Keep the pitch deck updated with real data from customer interviews and benchmark results. Prepare application materials for accelerator programs.
-
----
-
-## Issue Dependency Map
-
-Issues are not independent. Some must be completed before others can start. Here is the dependency structure:
-
-```
-WEEK 1-2                    WEEK 3-4                    WEEK 5-6
---------                    --------                    --------
-
-[Etherscan Batch        [Wallet Fingerprint      [FastAPI REST
- Scraper]                Extractor]                Scoring API]
- (Chirag)                (Chirag)                  (Laukik)
-    |                       |                         |
-    +--------> feeds ------>+                         |
-    |                       |                         |
-    |                  [Candidate Wallet              |
-    |                   List CLI + Normalizer]        |
-    |                   (Chirag)                      |
-    |                       |                         |
-    v                       v                         v
-[CEX Deposit            [Automated Precision/    [React Claim-Gate
- Tracer]                 Recall Benchmark]        Component]
- (Laukik)                (Laukik)                  (Chirag)
-    |                       |
-    |                       |
-[Temporal Decay         [SHA-256 Evidence
- Edge Weighting]         Hashes]
- (Laukik)                (Laukik)
-    |                       |
-    |                       v
-[Connected Component    [PDF Report Export]
- Pre-filter]             (Chirag)
- (Laukik)
-
-
-PARALLEL TRACK (Vinit, CPO — No code dependencies):
-
-Week 1-2: 10 customer discovery interviews + competitive tracker v1
-Week 3-4: 5 more interviews + 2 design partner LOIs + pricing validation
-Week 5-6: Launch operations playbook draft + updated pitch deck with real data
-```
-
-Reading this chart:
-
-- Arrows mean "feeds into" or "must exist before." The Etherscan scraper must exist before the fingerprint extractor can pull real contract interaction data.
-- Laukik's engine work (left column) and Chirag's data work (left column) run in parallel during weeks 1-2, then converge at the benchmark and API in weeks 3-4.
-- Vinit's customer work runs on a completely independent track with no code dependencies, but his findings directly influence what the engineering team prioritizes after week 4.
-- The FastAPI endpoint and React claim-gate are the final integration layer that turns the pipeline into a product that protocols can actually plug into their launch flow.
-
----
-
-## Branching and Commit Conventions
-
-Use conventional commits. Every commit message follows this format:
-
-```
-type(scope): short description
-
-Examples:
-feat(core-engine): add CEX deposit address convergence tracer
-feat(data-pipeline): implement Etherscan batch transaction scraper
-fix(scorer): correct weight normalization when CEX signal is absent
-docs(readme): add issue dependency chart and team responsibilities
-test(benchmark): add full-dataset precision/recall assertion suite
-```
-
-Branch naming:
-
-```
-feature/cex-deposit-tracer
-feature/etherscan-scraper
-fix/scorer-weight-bug
-```
-
-Create a branch for each issue, open a pull request when done, and request review from at least one other team member before merging into `main`.
